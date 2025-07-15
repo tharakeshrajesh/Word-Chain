@@ -11,6 +11,10 @@ const gameActive = new Map();
 
 const PORT = process.env.SLASH_PORT || 3030;
 
+function gameOver(channelId) {
+	gameActive.delete(channelId);
+}
+
 app.command('/startgame', async ({ command, ack, say }) => {
   await ack();
   if (gameActive.get(command.channel_id)) {
@@ -137,4 +141,4 @@ async function slash_commands() {
   console.log(`⚡️ Bolt app (slash commands) is running on port ${PORT}`);
 }
 
-module.exports = {slash_commands}
+module.exports = { slash_commands, gameOver }

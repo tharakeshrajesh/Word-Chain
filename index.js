@@ -100,7 +100,7 @@ async function startgame(channelId) {
 }
 
 module.exports = { startgame };
-const { slash_commands } = require('./slash_commands');
+const { slash_commands, gameOver } = require('./slash_commands');
 
 console.clear();
 
@@ -127,6 +127,7 @@ receiver.app.post('/', async (req, res) => {
         streak.delete(channelId);
         lastUser.delete(channelId);
         lastWord.delete(channelId);
+        gameOver(channelId);
         return res.status(200).send();
       }
 
@@ -148,6 +149,7 @@ receiver.app.post('/', async (req, res) => {
         streak.delete(channelId);
         lastUser.delete(channelId);
         lastWord.delete(channelId);
+        gameOver(channelId);
       }
     }
   }

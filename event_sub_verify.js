@@ -14,6 +14,7 @@ app.post('/', (req, res) => {
 
   console.log('📩 Event received:', JSON.stringify(req.body, null, 2));
   res.status(200).send();
+  process.exit();
 });
 
 app.listen(PORT, () => {

@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const { App, ExpressReceiver } = require('@slack/bolt');
-const { slash_commands, gameOver } = require('./slash_commands');
 
 const PORT = process.env.PORT || 3000;
 
@@ -102,6 +101,8 @@ async function startgame(channelId) {
 }
 
 module.exports = { startgame };
+
+const { slash_commands, gameOver } = require('./slash_commands');
 
 console.clear();
 

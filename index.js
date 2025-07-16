@@ -1,23 +1,21 @@
-require('dotenv').config();
-const express = require('express');
-const bodyParser = require('body-parser');
+require("dotenv").config();
 const { App, ExpressReceiver } = require('@slack/bolt');
-
-const PORT = process.env.PORT || 3000;
+const express = require('express');
 
 const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  endpoints: '/',
 });
 
-receiver.app.use(bodyParser.json());
-receiver.app.use(bodyParser.urlencoded({ extended: true }));
+receiver.app.use(express.json());
+receiver.app.use(express.urlencoded({ extended: true }));
 
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
   receiver,
 });
+
+const PORT = process.env.PORT || 3000;
 
 const gameActive = new Map();
 const lastWord = new Map();
@@ -70,6 +68,7 @@ async function addReaction(channel, ts, emoji = '+1') {
 async function isWord(word, channelId, user) {
   if (!/^[a-zA-Z]+$/.test(word)) return false;
   if (word.length < 2) return false;
+
   if (lastUser.get(channelId) === user) return false;
 
   const lower = word.toLowerCase();
@@ -101,16 +100,14 @@ async function startgame(channelId) {
 }
 
 module.exports = { startgame };
-
 const { slash_commands, gameOver } = require('./slash_commands');
 
 console.clear();
 
 receiver.app.post('/', async (req, res) => {
   const body = req.body;
-  if (body.type === 'url_verification') {
-    return res.status(200).send(body.challenge);
-  }
+
+  if (body.type === 'url_verification') return res.status(200).send(body.challenge);
 
   if (!body?.event) return res.status(200).send();
   const event = body.event;

@@ -1,53 +1,50 @@
 require("dotenv").config();
 const { startgame } = require('./index');
 const { App } = require('@slack/bolt');
+const { exec } = require('child_process');
+
+const botId = process.env.BOTID;
+const devId = process.env.DEVID;
 
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
 });
 
-const gameActive = new Map();
-
 const PORT = process.env.SLASH_PORT || 3030;
 
-function gameOver(channelId) {
-	gameActive.delete(channelId);
+async function postEphemeral(channelId, userId, text, blocks = null) {
+	if (!(await app.client.conversations.members({ channel: channelId })).members.includes(botId)) return;
+	if (blocks)
+		app.client.chat.postEphemeral({
+			token: process.env.SLACK_BOT_TOKEN,
+			channel: channelId,
+			user: userId,
+			text: text,
+			blocks: blocks
+		});
+	else
+		app.client.chat.postEphemeral({
+			token: process.env.SLACK_BOT_TOKEN,
+			channel: channelId,
+			user: userId,
+			text: text
+		});
 }
 
-app.command('/startgame', async ({ command, ack, say }) => {
-  await ack();
-  if (gameActive.get(command.channel_id)) {
-    return app.client.chat.postEphemeral({
-        token: process.env.SLACK_BOT_TOKEN,
-        channel: command.channel_id,
-        user: command.user_id,
-        text: "There is already an ongoing game!"
-    });
-  }
-  await say(`Game started by <@${command.user_id}>.`);
-  startgame(command.channel_id);
-  gameActive.set(command.channel_id, true);
+app.command('/startgame', async ({ command, ack }) => {
+	await ack();
+	startgame(command.channel_id, command.user);
 });
 
 app.command('/help', async ({ command, ack }) => {
-  await ack();
-  app.client.chat.postEphemeral({
-      token: process.env.SLACK_BOT_TOKEN,
-      channel: command.channel_id,
-      user: command.user_id,
-      text: "/help: Lists all the commands.\n/rules: Explains the rules of the game.\n/startgame: starts a game if there is not an ongoing one currently."
-  });
+	await ack();
+	postEphemeral(command.channel_id, command.user_id, "/help: Lists all the commands.\n/rules: Explains the rules of the game.\n/startgame: starts a game if there is not an ongoing one currently.");
 });
 
 app.command('/rules', async ({ command, ack }) => {
-  await ack();
-  app.client.chat.postEphemeral({
-      token: process.env.SLACK_BOT_TOKEN,
-      channel: command.channel_id,
-      user: command.user_id,
-      text: "Word Chain Game Rules",
-      blocks: [
+	await ack();
+	postEphemeral(command.channel_id, command.user_id, 'Word Chain Game Rules', [
 		{
 			"type": "rich_text",
 			"elements": [
@@ -123,22 +120,26 @@ app.command('/rules', async ({ command, ack }) => {
 				}
 			]
 		}
-	]
-  });
+	]);
+});
+
+app.command('/tunnel', async ({ command, ack }) => {
+	await ack();
+	if (!command.userId === devId) return postEphemeral(command.channel_id, command.user_id, 'Only developers/managers/admins of the bot can use this command!');
+	exec(process.platform === 'win32' ? '(Invoke-RestMethod -Uri http://127.0.0.1:4040/api/tunnels).tunnels | ForEach-Object { $_.public_url } | Where-Object { $_ -like "https://*" }' : process.platform === 'linux' ? "curl -s http://127.0.0.1:4040/api/tunnels | grep -o 'https://[^\"]*'" : process.platform === 'darwin' ? 'curl -s http://127.0.0.1:4040/api/tunnels | grep -o \'"public_url":"https://[^"]*"\' | sed \'s/"public_url":"//\'' : 'echo "OS not supported for this command."', (err, stdout, stderr) => {
+		if (err) return postEphemeral(command.channel_id, command.user_id, `An error occured!\n\n${String(err)}`);
+		postEphemeral(command.channel_id, command.user_id, `Tunnel URL(s):\n${stdout.trim()}`);
+	});
 });
 
 app.event('member_joined_channel', async ({ command }) => {
-  app.client.chat.postEphemeral({
-      token: process.env.SLACK_BOT_TOKEN,
-      channel: command.channel_id,
-      user: command.user_id,
-      text: `Welcome to <#${C0955VAEG4W}>, <@${command.user_id}>!\nTo learn the rules use the /rules command.\nTo learn other commands use the /help command.\nHave fun and don't ruin streaks!`
-    });
+	postEphemeral(command.channel_id, command.user_id, `Welcome to <#${C0955VAEG4W}>, <@${command.user_id}>!\nTo learn the rules use the /rules command.\nTo learn other commands use the /help command.\nHave fun and don't ruin streaks!`);
 });
 
 async function slash_commands() {
   await app.start(PORT);
   console.log(`⚡️ Bolt app (slash commands) is running on port ${PORT}`);
+  postEphemeral('C0955VAEG4W', devId, `Bot started\n<@${devId}>`);
 }
 
-module.exports = { slash_commands, gameOver }
+module.exports = { slash_commands }

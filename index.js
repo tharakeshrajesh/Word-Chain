@@ -1,4 +1,4 @@
-require("dotenv").config();
+{require("dotenv").config();
 const { App, ExpressReceiver } = require('@slack/bolt');
 const express = require('express');
 
@@ -17,6 +17,8 @@ const app = new App({
 
 const PORT = process.env.PORT || 3000;
 
+const botId = process.env.BOTID;
+
 const gameActive = new Map();
 const lastWord = new Map();
 const usedWords = new Map();
@@ -32,6 +34,7 @@ const sentences = [
 ];
 
 async function sendMessage(channelId, text) {
+  if (!(await app.client.conversations.members({ channel: channelId })).members.includes(botId)) return;
   try {
     await app.client.chat.postMessage({
       token: process.env.SLACK_BOT_TOKEN,
@@ -43,8 +46,19 @@ async function sendMessage(channelId, text) {
   }
 }
 
+async function postEphemeral(channelId, userId, text) {
+  if (!(await app.client.conversations.members({ channel: channelId })).members.includes(botId)) return;
+  app.client.chat.postEphemeral({
+    token: process.env.SLACK_BOT_TOKEN,
+    channel: channelId,
+    user: userId,
+    text: text
+  });
+}
+
 async function addReaction(channel, ts, emoji = '+1') {
   try {
+    if (!(await app.client.conversations.members({ channel: channelId })).members.includes(botId)) return;
     await app.client.reactions.add({
       token: process.env.SLACK_BOT_TOKEN,
       name: emoji,
@@ -83,9 +97,13 @@ async function isWord(word, channelId, user) {
   }
 }
 
-async function startgame(channelId) {
+async function startgame(channelId, userId) {
   gameActive.set(channelId, true);
   usedWords.set(channelId, new Set());
+
+  if (gameActive.get(channelId)) return postEphemeral(channelId, userId, "There is already an ongoing game!");
+
+  await sendMessage(channelId, `Game started by <@${userId}>.`);
 
   try {
     const wordRes = await fetch('https://random-word-api.herokuapp.com/word');
@@ -96,11 +114,16 @@ async function startgame(channelId) {
     await sendMessage(channelId, `The starting word is: ${randomWord}`);
   } catch (error) {
     console.error('Failed to fetch starting word:', error);
+    gameActive.delete(channelId);
+    usedWords.delete(channelId);
+    streak.delete(channelId);
+    lastUser.delete(channelId);
+    lastWord.delete(channelId);
   }
 }
 
 module.exports = { startgame };
-const { slash_commands, gameOver } = require('./slash_commands');
+const { slash_commands } = require('./slash_commands');
 
 console.clear();
 
@@ -164,4 +187,4 @@ slash_commands();
 (async () => {
   await app.start(PORT);
   console.log(`⚡️ Express Bolt app (main) is running on port ${PORT}`);
-})();
+})();}

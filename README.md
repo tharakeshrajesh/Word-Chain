@@ -33,6 +33,8 @@ If you want to host this bot yourself to add to it or anything, then feel free b
     SLASH_PORT=<Port that slash_commands.js will be using>
     DEVID=<Your Slack ID>
     BOTID=<Your Bot ID>
+    DEBUGCHANNELID=<Your Channel to be notified with any bot info, errors, etc.>
+    PRIVATEDEBUG=<Set to true if you want only yourself to see the debug messages or false if you want everyone in the debug channel to see it>
     ```
 * Next install ngrok and cloudflare
   * First create a cloudflare account if you don't already have one and start a tunnel (watch yt videos)

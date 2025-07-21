@@ -18,6 +18,7 @@ const app = new App({
 const PORT = process.env.PORT || 3000;
 
 const botId = process.env.BOTID;
+const debugChannel = process.env.DEBUGCHANNELID
 
 const gameActive = new Map();
 const lastWord = new Map();
@@ -33,6 +34,13 @@ const sentences = [
   "I think the people who worked hard on this streakVal word streak want to privately talk to you user.\nMake sure you take off all your protective clothing and gear before you go!",
 ];
 
+function debugMessage(text) {
+  if (process.env.PRIVATEDEBUG === 'true')
+    postEphemeral(debugChannel, process.env.DEVID, text);
+  else
+    sendMessage(debugChannel, text);
+}
+
 async function sendMessage(channelId, text) {
   if (!(await app.client.conversations.members({ channel: channelId })).members.includes(botId)) return;
   try {
@@ -42,6 +50,7 @@ async function sendMessage(channelId, text) {
       text,
     });
   } catch (error) {
+    debugMessage('Error sending message:\n'+error);
     console.error('Error sending message:', error);
   }
 }
@@ -56,9 +65,10 @@ async function postEphemeral(channelId, userId, text) {
   });
 }
 
-async function addReaction(channel, ts, emoji = '+1') {
+async function addReaction(channelId, ts, emoji = '+1') {
+  const channel = channelId; //I don't know why but it won't let you use channelId as the variable for one of them, idk which.
   try {
-    if (!(await app.client.conversations.members({ channel: channelId })).members.includes(botId)) return;
+    if (!(await app.client.conversations.members({ channel: channel })).members.includes(botId)) return;
     await app.client.reactions.add({
       token: process.env.SLACK_BOT_TOKEN,
       name: emoji,
@@ -75,7 +85,8 @@ async function addReaction(channel, ts, emoji = '+1') {
       });
     }
   } catch (error) {
-    console.error('Error adding reaction:', error);
+    debugMessage('Error adding reaction:\n'+error);
+    console.error('Error adding reaction:', error)
   }
 }
 
@@ -98,10 +109,10 @@ async function isWord(word, channelId, user) {
 }
 
 async function startgame(channelId, userId) {
-  gameActive.set(channelId, true);
   usedWords.set(channelId, new Set());
 
   if (gameActive.get(channelId)) return postEphemeral(channelId, userId, "There is already an ongoing game!");
+  gameActive.set(channelId, true);
 
   await sendMessage(channelId, `Game started by <@${userId}>.`);
 
@@ -113,6 +124,7 @@ async function startgame(channelId, userId) {
     streak.set(channelId, 0);
     await sendMessage(channelId, `The starting word is: ${randomWord}`);
   } catch (error) {
+    debugMessage('Failed to fetch starting word:\n'+error);
     console.error('Failed to fetch starting word:', error);
     gameActive.delete(channelId);
     usedWords.delete(channelId);
@@ -153,7 +165,6 @@ receiver.app.post('/', async (req, res) => {
         streak.delete(channelId);
         lastUser.delete(channelId);
         lastWord.delete(channelId);
-        gameOver(channelId);
         return res.status(200).send();
       }
 
@@ -175,7 +186,6 @@ receiver.app.post('/', async (req, res) => {
         streak.delete(channelId);
         lastUser.delete(channelId);
         lastWord.delete(channelId);
-        gameOver(channelId);
       }
     }
   }

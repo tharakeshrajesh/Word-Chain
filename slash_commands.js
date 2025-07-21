@@ -34,7 +34,7 @@ async function postEphemeral(channelId, userId, text, blocks = null) {
 
 app.command('/startgame', async ({ command, ack }) => {
 	await ack();
-	startgame(command.channel_id, command.user);
+	startgame(command.channel_id, command.user_id);
 });
 
 app.command('/help', async ({ command, ack }) => {
@@ -133,13 +133,24 @@ app.command('/tunnel', async ({ command, ack }) => {
 });
 
 app.event('member_joined_channel', async ({ command }) => {
-	postEphemeral(command.channel_id, command.user_id, `Welcome to <#${C0955VAEG4W}>, <@${command.user_id}>!\nTo learn the rules use the /rules command.\nTo learn other commands use the /help command.\nHave fun and don't ruin streaks!`);
+	postEphemeral(command.channel_id, command.user_id, `Welcome to <#${command.channel_id}>, <@${command.user_id}>!\nTo learn the rules use the /rules command.\nTo learn other commands use the /help command.\nHave fun and don't ruin streaks!`);
 });
 
 async function slash_commands() {
   await app.start(PORT);
   console.log(`⚡️ Bolt app (slash commands) is running on port ${PORT}`);
-  postEphemeral('C0955VAEG4W', devId, `Bot started\n<@${devId}>`);
+  if (process.env.PRIVATEDEBUG === 'true')
+  	postEphemeral(process.env.DEBUGCHANNELID, devId, `Bot started\n<@${devId}>`);
+  else
+	try {
+		await app.client.chat.postMessage({
+		token: process.env.SLACK_BOT_TOKEN,
+		channel: process.env.DEBUGCHANNELID,
+		text: `Bot started\n<@${devId}>`,
+		});
+	} catch (error) {
+		console.error('Error sending message:', error);
+	}
 }
 
 module.exports = { slash_commands }

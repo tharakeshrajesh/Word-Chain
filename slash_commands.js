@@ -5,14 +5,13 @@ const { exec } = require('child_process');
 
 const botId = process.env.BOTID;
 const devId = process.env.DEVID;
-const PORT = process.env.SLASH_PORT || 3030;
 
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  endpoints: '/slack/events',
-  port: PORT
 });
+
+const PORT = process.env.SLASH_PORT || 3030;
 
 async function postEphemeral(channelId, userId, text, blocks = null) {
 	if (!(await app.client.conversations.members({ channel: channelId })).members.includes(botId)) return;

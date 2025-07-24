@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#
+rm *.log
+
 # Start bot code
 nohup node index.js > index.log 2>&1 &
 

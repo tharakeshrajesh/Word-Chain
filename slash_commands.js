@@ -15,21 +15,27 @@ const PORT = process.env.SLASH_PORT || 3030;
 
 async function postEphemeral(channelId, userId, text, blocks = null) {
 	if (!(await app.client.conversations.members({ channel: channelId })).members.includes(botId)) return;
-	if (blocks)
-		app.client.chat.postEphemeral({
-			token: process.env.SLACK_BOT_TOKEN,
-			channel: channelId,
-			user: userId,
-			text: text,
-			blocks: blocks
-		});
-	else
-		app.client.chat.postEphemeral({
-			token: process.env.SLACK_BOT_TOKEN,
-			channel: channelId,
-			user: userId,
-			text: text
-		});
+	try {
+		if (blocks) {
+			app.client.chat.postEphemeral({
+				token: process.env.SLACK_BOT_TOKEN,
+				channel: channelId,
+				user: userId,
+				text: text,
+				blocks: blocks
+			});
+		} else {
+			app.client.chat.postEphemeral({
+				token: process.env.SLACK_BOT_TOKEN,
+				channel: channelId,
+				user: userId,
+				text: text
+			});
+		}
+	} catch (error) {
+		debugMessage('Error sending message:\n'+error);
+    	console.error('Error sending message:', error);
+	}
 }
 
 app.command('/startgame', async ({ command, ack }) => {

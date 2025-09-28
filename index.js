@@ -1,4 +1,4 @@
-{require("dotenv").config();
+require("dotenv").config();
 const { App, ExpressReceiver } = require('@slack/bolt');
 const express = require('express');
 
@@ -32,6 +32,8 @@ const sentences = [
   ":tada: :confetti_ball:\nuser has done it!\nWe all get to have the fun of restarting this streakVal word streak again!",
   "That streakVal word streak was getting big!\nThanks user for breaking it!",
   "I think the people who worked hard on this streakVal word streak want to privately talk to you user.\nMake sure you take off all your protective clothing and gear before you go!",
+  "Hey, I think user is stupid.\nstreakVal word streak gone now :pf:",
+  "user\nstreakVal word streak is over now, yay.\n:yay-1-1-72614fb2edd2::yay-2-1-3828bb11976b:\n:yay-1-2-1e2d4f324297::yay-2-2-b04378aea4ec:"
 ];
 
 function debugMessage(text) {
@@ -57,12 +59,17 @@ async function sendMessage(channelId, text) {
 
 async function postEphemeral(channelId, userId, text) {
   if (!(await app.client.conversations.members({ channel: channelId })).members.includes(botId)) return;
-  app.client.chat.postEphemeral({
-    token: process.env.SLACK_BOT_TOKEN,
-    channel: channelId,
-    user: userId,
-    text: text
-  });
+  try {
+    app.client.chat.postEphemeral({
+      token: process.env.SLACK_BOT_TOKEN,
+      channel: channelId,
+      user: userId,
+      text: text
+    });
+  } catch (error) {
+    debugMessage('Error sending message:\n'+error);
+    console.error('Error sending message:', error);
+  }
 }
 
 async function addReaction(channelId, ts, emoji = '+1') {
@@ -109,10 +116,10 @@ async function isWord(word, channelId, user) {
 }
 
 async function startgame(channelId, userId) {
-  usedWords.set(channelId, new Set());
-
   if (gameActive.get(channelId)) return postEphemeral(channelId, userId, "There is already an ongoing game!");
+  
   gameActive.set(channelId, true);
+  usedWords.set(channelId, new Set());
 
   await sendMessage(channelId, `Game started by <@${userId}>.`);
 
@@ -136,6 +143,7 @@ async function startgame(channelId, userId) {
 
 module.exports = { startgame };
 const { slash_commands } = require('./slash_commands');
+const { editVar, getVar, deleteVar } = require("./saveHandler");
 
 console.clear();
 
@@ -146,20 +154,35 @@ receiver.app.post('/', async (req, res) => {
 
   if (!body?.event) return res.status(200).send();
   const event = body.event;
+  const channelId = event.channel;
 
   if (event.subtype === 'bot_message' || event.bot_id) return res.status(200).send();
   if (event.type === 'app_mention') await addReaction(event.channel, event.ts, "mad_ping_sock");
-  if (!gameActive.has(event.channel)) return res.status(200).send();
+  
+  if (!gameActive.has(event.channel)) {
+    const lastSavedWord = await getVar(channelId+"_WORD");
+    if (lastSavedWord == undefined) return res.status(200).send();
+    const savedStreak = await getVar(channelId+"_STREAK");
+    if (lastSavedWord) lastWord.set(channelId, String(lastSavedWord));
+    if (savedStreak) streak.set(channelId, parseInt(savedStreak)); else res.status(200).send();
+    await sendMessage(channelId, `The bot unfortunately went offline!\nPlease resume with the last word that was logged which is ${lastSavedWord}.`);
+    gameActive.set(channelId, true);
+    usedWords.set(channelId, new Set(lastSavedWord));
+    return res.status(200).send();
+  }
 
   if (event.type === 'message') {
-    const channelId = event.channel;
     const messageText = event.text.toLowerCase();
 
     if (lastWord.has(channelId)) {
       const valid = await isWord(messageText, channelId, event.user);
       if (!valid) {
+        if (streak.get(channelId) > (await getVar(channelId+"_LONGESTSTREAK"))) {
+          await editVar(channelId+"_LONGESTSTREAK", streak.get(channelId));
+        }
         await addReaction(channelId, event.ts, "-1");
-        await sendMessage(channelId, sentences[Math.floor(Math.random() * sentences.length)].replace("streakVal", String(streak.get(channelId))).replace("user", `<@${event.user}>`));
+        await sendMessage(channelId, sentences[Math.floor(Math.random() * sentences.length)].replace("streakVal", String(streak.get(channelId))).replace("user", `<@${event.user}>`)+`\nThe longest streak was ${await getVar(channelId+"_LONGESTSTREAK")}`);
+        await deleteVar(channelId);
         gameActive.delete(channelId);
         usedWords.delete(channelId);
         streak.delete(channelId);
@@ -174,13 +197,19 @@ receiver.app.post('/', async (req, res) => {
 
       if (lastChar === firstChar) {
         await addReaction(channelId, event.ts);
+        await editVar(channelId+"_STREAK", streak.get(channelId) + 1);
+        await editVar(channelId+"_WORD", messageText);
         lastWord.set(channelId, messageText);
         usedWords.get(channelId).add(messageText);
         streak.set(channelId, streak.get(channelId) + 1);
         lastUser.set(channelId, event.user);
       } else {
+        if (streak.get(channelId) > (await getVar(channelId+"_LONGESTSTREAK"))) {
+          await editVar(channelId+"_LONGESTSTREAK", streak.get(channelId));
+        }
         await addReaction(channelId, event.ts, "-1");
         await sendMessage(channelId, sentences[Math.floor(Math.random() * sentences.length)]);
+        await deleteVar(channelId);
         gameActive.delete(channelId);
         usedWords.delete(channelId);
         streak.delete(channelId);
@@ -197,4 +226,4 @@ slash_commands();
 (async () => {
   await app.start(PORT);
   console.log(`⚡️ Express Bolt app (main) is running on port ${PORT}`);
-})();}
+})();
